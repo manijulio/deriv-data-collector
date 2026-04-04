@@ -31,6 +31,8 @@ async def collect_one(instrument):
         times  = data["history"]["times"]
         prices = data["history"]["prices"]
         batch  = sorted(zip(times, prices), key=lambda x: x[0])
+if not batch:
+            break
         all_rows = batch + all_rows
         end = batch[0][0] - 1
         await asyncio.sleep(1.5)
