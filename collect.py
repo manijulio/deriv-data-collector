@@ -28,10 +28,10 @@ async def collect_one(instrument):
             code = data.get("error", {}).get("code", "inconnu")
             print(instrument + " - Arret : " + str(code))
             break
-        times  = data["history"]["times"]
+        times = data["history"]["times"]
         prices = data["history"]["prices"]
-        batch  = sorted(zip(times, prices), key=lambda x: x[0])
-if not batch:
+        batch = sorted(zip(times, prices), key=lambda x: x[0])
+        if not batch:
             break
         all_rows = batch + all_rows
         end = batch[0][0] - 1
@@ -40,11 +40,11 @@ if not batch:
         print(instrument + " - Aucune donnee collectee")
         return
     df = pd.DataFrame(all_rows, columns=["unix_time", "price"])
-    df["price"]      = df["price"].astype(float)
-    df["timestamp"]  = pd.to_datetime(df["unix_time"], unit="s")
+    df["price"] = df["price"].astype(float)
+    df["timestamp"] = pd.to_datetime(df["unix_time"], unit="s")
     df["instrument"] = instrument
-    df["tick_size"]  = df["price"].diff().abs()
-    df["direction"]  = df["price"].diff().apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+    df["tick_size"] = df["price"].diff().abs()
+    df["direction"] = df["price"].diff().apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
     df["session_id"] = "BACKFILL_AUTO"
     df = df[["timestamp","unix_time","instrument","price","direction","tick_size","session_id"]]
     df = df.drop_duplicates(subset=["unix_time"]).sort_values("unix_time").reset_index(drop=True)
