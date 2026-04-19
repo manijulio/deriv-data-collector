@@ -21,8 +21,10 @@ jobs:
 
       - name: Lancer la collecte
         run: python collect.py
+        continue-on-error: true
 
       - name: Sauvegarder les donnees
+        if: always()
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
