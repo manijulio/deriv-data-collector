@@ -11,19 +11,34 @@ INSTRUMENTS = [
 ]
 
 async def fetch_batch(instrument, end, count=5000):
+    # Récupère un batch de 5000 ticks avec 3 tentatives et attente progressive
     url = "wss://ws.derivws.com/websockets/v3?app_id=1"
     req = {"ticks_history": instrument, "end": end, "count": count, "style": "ticks"}
-    async with websockets.connect(url) as ws:
-        await ws.send(json.dumps(req))
-        resp = await ws.recv()
-    return json.loads(resp)
+    delais = [10, 30, 60]
+    derniere_erreur = None
+    for tentative in range(3):
+        try:
+            async with websockets.connect(url, open_timeout=30, close_timeout=10) as ws:
+                await ws.send(json.dumps(req))
+                resp = await asyncio.wait_for(ws.recv(), timeout=30)
+            return json.loads(resp)
+        except Exception as e:
+            derniere_erreur = e
+            if tentative < 2:
+                print(f"  ⚠️  {instrument} - Echec tentative {tentative+1} ({type(e).__name__}). Nouvelle tentative dans {delais[tentative]}s...")
+                await asyncio.sleep(delais[tentative])
+    raise derniere_erreur
 
 async def collect_one(instrument):
     all_rows = []
     end = "latest"
     for i in range(200):
         print(instrument + " - Batch " + str(i+1))
-        data = await fetch_batch(instrument, end)
+        try:
+            data = await fetch_batch(instrument, end)
+        except Exception as e:
+            print(f"  ❌ {instrument} - Abandon apres 3 tentatives : {type(e).__name__}")
+            break
         if "history" not in data:
             code = data.get("error", {}).get("code", "inconnu")
             print(instrument + " - Arret : " + str(code))
@@ -53,7 +68,18 @@ async def collect_one(instrument):
     print(instrument + " - OK : " + str(len(df)) + " ticks -> " + filename)
 
 async def main():
+    # Isole les erreurs pour qu'un indice en panne ne bloque pas les autres
+    reussis, echecs = [], []
     for instrument in INSTRUMENTS:
-        await collect_one(instrument)
+        try:
+            await collect_one(instrument)
+            reussis.append(instrument)
+        except Exception as e:
+            print(f"❌ ERREUR FATALE sur {instrument} : {type(e).__name__} - {e}")
+            echecs.append(instrument)
+    print("\n" + "="*60)
+    print(f"Bilan : {len(reussis)}/{len(INSTRUMENTS)} indices collectes")
+    if echecs:
+        print(f"Echecs : {', '.join(echecs)}")
 
 asyncio.run(main())
